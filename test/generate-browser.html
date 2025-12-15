@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 卡通香蕉生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #667eea;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        #result {
+            margin-top: 30px;
+        }
+        .image-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .image-container img {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+        }
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍌 Gemini 卡通香蕉生成器</h1>
+        <p style="text-align: center; color: #666;">使用 Gemini Nano Banana Pro 生成可爱的卡通图片</p>
+
+        <div class="input-group">
+            <label for="apiKey">API Key:</label>
+            <input type="text" id="apiKey" value="AIzaSyBu1dY2GoimsGVNjPVUD28p6QbC5RABps0" placeholder="输入您的 Gemini API Key">
+        </div>
+
+        <div class="input-group">
+            <label for="prompt">图片描述 (Prompt):</label>
+            <textarea id="prompt" placeholder="描述您想要生成的图片...">Create a cute cartoon banana character with a friendly smile, big eyes, colorful and playful style, suitable for children. The banana should have arms and legs, and look very happy and cheerful.</textarea>
+        </div>
+
+        <button onclick="generateImage()" id="generateBtn">🎨 生成卡通图片</button>
+
+        <div id="result"></div>
+    </div>
+
+    <script type="module">
+        import { GoogleGenAI } from 'https://esm.run/@google/genai';
+
+        window.generateImage = async function() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const prompt = document.getElementById('prompt').value.trim();
+            const resultDiv = document.getElementById('result');
+            const btn = document.getElementById('generateBtn');
+
+            if (!apiKey) {
+                resultDiv.innerHTML = '<div class="error">❌ 请输入 API Key</div>';
+                return;
+            }
+
+            if (!prompt) {
+                resultDiv.innerHTML = '<div class="error">❌ 请输入图片描述</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>正在生成图片，请稍候...</p></div>';
+
+            try {
+                const ai = new GoogleGenAI({ apiKey });
+
+                // Using gemini-2.5-flash-image (Nano Banana)
+                const response = await ai.models.generateContent({
+                    model: "gemini-2.5-flash-image",
+                    contents: prompt,
+                });
+
+                console.log('Response:', response);
+
+                let hasImage = false;
+                let imageHTML = '';
+                let textHTML = '';
+
+                if (response.candidates && response.candidates[0]) {
+                    const parts = response.candidates[0].content.parts;
+
+                    for (let i = 0; i < parts.length; i++) {
+                        const part = parts[i];
+
+                        if (part.text) {
+                            textHTML += `<div class="success"><strong>描述：</strong>${part.text}</div>`;
+                        }
+
+                        if (part.inlineData && part.inlineData.data) {
+                            const mimeType = part.inlineData.mimeType || 'image/png';
+                            const imageData = part.inlineData.data;
+                            imageHTML += `
+                                <div class="image-container">
+                                    <img src="data:${mimeType};base64,${imageData}" alt="Generated cartoon banana">
+                                    <br><br>
+                                    <a href="data:${mimeType};base64,${imageData}" download="cartoon-banana-${i}.png">
+                                        <button type="button">💾 下载图片</button>
+                                    </a>
+                                </div>
+                            `;
+                            hasImage = true;
+                        }
+                    }
+                }
+
+                if (hasImage) {
+                    resultDiv.innerHTML = `<div class="success">✅ 图片生成成功！</div>${textHTML}${imageHTML}`;
+                } else {
+                    resultDiv.innerHTML = '<div class="error">❌ 未生成图片。响应：' + JSON.stringify(response, null, 2) + '</div>';
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                let errorMessage = error.message || '未知错误';
+
+                if (error.message && error.message.includes('quota')) {
+                    errorMessage = '❌ API 配额已用完，请稍后重试或检查您的计费信息。';
+                } else if (error.message && error.message.includes('PERMISSION_DENIED')) {
+                    errorMessage = '❌ API Key 权限被拒绝，请检查 API Key 设置。';
+                }
+
+                resultDiv.innerHTML = `<div class="error">${errorMessage}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "name": "Skywork AI Clone",
+  "description": "A pixel-level replica of the Skywork AI interface powered by Google Gemini, featuring real-time search grounding, deep thinking capabilities, and a sleek dark-mode UI.",
+  "requestFramePermissions": []
+}
