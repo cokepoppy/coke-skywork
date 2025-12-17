@@ -1,0 +1,369 @@
+/* PPT Editor Styles */
+
+.ppt-editor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.ppt-editor-container {
+  background: #1a1a1a;
+  border-radius: 12px;
+  width: 100%;
+  height: 100%;
+  max-width: 1800px;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Toolbar */
+.ppt-editor-toolbar {
+  background: #252525;
+  border-bottom: 1px solid #333;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-button {
+  background: #333;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-button:hover {
+  background: #444;
+  border-color: #555;
+}
+
+.toolbar-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toolbar-button.primary {
+  background: #0066cc;
+  border-color: #0066cc;
+}
+
+.toolbar-button.primary:hover {
+  background: #0052a3;
+}
+
+.toolbar-button.danger {
+  background: #cc0000;
+  border-color: #cc0000;
+}
+
+.toolbar-button.danger:hover {
+  background: #a30000;
+}
+
+.scale-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scale-button {
+  background: #333;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.scale-button:hover {
+  background: #444;
+}
+
+.scale-value {
+  color: #aaa;
+  font-size: 13px;
+  min-width: 50px;
+  text-align: center;
+}
+
+/* Main Content */
+.ppt-editor-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Canvas Area */
+.ppt-canvas-area {
+  flex: 1;
+  overflow: auto;
+  background: #2a2a2a;
+  padding: 40px;
+  /* Remove flex centering to prevent content clipping on overflow */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ppt-canvas-wrapper {
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  /* Use margin for centering instead of flex to handle overflow properly */
+  margin: auto;
+  flex-shrink: 0;
+}
+
+.ppt-canvas {
+  position: relative;
+  background: #ffffff;
+  cursor: default;
+}
+
+/* Editable Element */
+.editable-element {
+  position: absolute;
+  cursor: move;
+  box-sizing: border-box;
+}
+
+.editable-element.selected {
+  outline: 2px solid #00D2FF;
+  outline-offset: -1px;
+}
+
+.editable-element:hover:not(.selected) {
+  outline: 1px dashed #00D2FF;
+  outline-offset: -1px;
+}
+
+/* Text Element */
+.text-element {
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.text-element.editing {
+  outline: 2px solid #00D2FF;
+  background: rgba(0, 210, 255, 0.05);
+}
+
+/* Shape Element */
+.shape-element {
+  width: 100%;
+  height: 100%;
+}
+
+.shape-element.circle {
+  border-radius: 50%;
+}
+
+.shape-element.ellipse {
+  border-radius: 50%;
+}
+
+/* Image Element */
+.image-element {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Chart Element */
+.chart-element {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+}
+
+/* Property Panel */
+.property-panel {
+  width: 300px;
+  background: #252525;
+  border-left: 1px solid #333;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.property-panel-header {
+  padding: 16px;
+  border-bottom: 1px solid #333;
+}
+
+.property-panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #fff;
+}
+
+.property-panel-content {
+  padding: 16px;
+}
+
+.property-group {
+  margin-bottom: 20px;
+}
+
+.property-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #aaa;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.property-field {
+  margin-bottom: 12px;
+}
+
+.property-label {
+  display: block;
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 6px;
+}
+
+.property-input {
+  width: 100%;
+  background: #333;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.property-input:focus {
+  outline: none;
+  border-color: #00D2FF;
+}
+
+.property-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.property-color-preview {
+  width: 40px;
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  cursor: pointer;
+}
+
+.property-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.property-select {
+  width: 100%;
+  background: #333;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* Empty State */
+.property-panel-empty {
+  padding: 40px 16px;
+  text-align: center;
+  color: #666;
+}
+
+.property-panel-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Loading State */
+.ppt-editor-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #fff;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #333;
+  border-top-color: #00D2FF;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Resize Handles for react-rnd */
+.react-resizable-handle {
+  background: #00D2FF;
+  border: 1px solid #fff;
+}
+
+/* Scrollbar Styling */
+.ppt-canvas-area::-webkit-scrollbar,
+.property-panel::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.ppt-canvas-area::-webkit-scrollbar-track,
+.property-panel::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.ppt-canvas-area::-webkit-scrollbar-thumb,
+.property-panel::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 5px;
+}
+
+.ppt-canvas-area::-webkit-scrollbar-thumb:hover,
+.property-panel::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

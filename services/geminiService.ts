@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { ModelType, SearchMode, SlideDeck } from '../types';
+import { ModelType, SearchMode, SlideDeck, PPTPage } from '../types';
 
 export const createChatStream = async (
   history: { role: string; parts: { text: string }[] }[],
@@ -127,6 +127,138 @@ export const generateSlideImage = async (
       console.error('3. CORS or network connectivity issue');
     }
 
+    throw error;
+  }
+};
+
+export const analyzePPTImage = async (imageBase64: string): Promise<PPTPage> => {
+  // Initialize inside function to ensure the latest API key is used
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const prompt = `你是一位专业的PPT设计分析专家。请仔细分析这张PPT图片（分辨率假定为1920x1080），提取所有视觉元素的详细信息，并以JSON格式输出。
+
+要求：
+1. 识别所有文本、形状、图片、图表元素
+2. 精确测量每个元素的位置(x,y)和尺寸(width,height)，单位为像素，基于1920x1080画布
+3. 提取文本的内容、字号、字体粗细、颜色、对齐方式
+4. 识别形状的类型、背景色、边框色、圆角
+5. 从底层到顶层标注z-index（背景元素z-index=0，最上层元素最大）
+6. 颜色使用十六进制格式(如 #FF0000)
+7. 为每个元素生成唯一的id（如 elem_1, elem_2...）
+
+输出格式（必须是有效的JSON）：
+{
+  "id": "page_1",
+  "width": 1920,
+  "height": 1080,
+  "backgroundColor": "#FFFFFF",
+  "elements": [
+    {
+      "id": "elem_1",
+      "type": "text",
+      "x": 100,
+      "y": 200,
+      "width": 500,
+      "height": 60,
+      "zIndex": 5,
+      "content": "标题文字",
+      "fontSize": 48,
+      "fontFamily": "Microsoft YaHei",
+      "fontWeight": "bold",
+      "color": "#333333",
+      "textAlign": "center"
+    },
+    {
+      "id": "elem_2",
+      "type": "shape",
+      "x": 50,
+      "y": 50,
+      "width": 1820,
+      "height": 980,
+      "zIndex": 0,
+      "shapeType": "rectangle",
+      "backgroundColor": "#F0F0F0",
+      "borderRadius": 10
+    }
+  ]
+}
+
+重要提示：
+- 只输出JSON数据，不要添加任何其他文字说明
+- 确保JSON格式正确，可以被解析
+- 识别所有可见的元素，包括背景、装饰性元素
+- 坐标和尺寸要尽可能精确`;
+
+  try {
+    console.log('Analyzing PPT image with Gemini Vision API...');
+
+    // Remove data URI prefix if exists
+    const base64Data = imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: {
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: 'image/png',
+              data: base64Data
+            }
+          }
+        ]
+      }
+    });
+
+    console.log('API response received');
+
+    // Extract text from response
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error('No text response from API');
+    }
+
+    console.log('Response text:', text.substring(0, 200) + '...');
+
+    // Extract JSON from response (may be wrapped in code blocks)
+    let jsonText = text.trim();
+
+    // Remove markdown code blocks if present
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    // Parse JSON
+    const pptData = JSON.parse(jsonText);
+
+    // Validate and ensure required fields
+    if (!pptData.elements || !Array.isArray(pptData.elements)) {
+      throw new Error('Invalid PPT data: missing elements array');
+    }
+
+    // Add default values if missing
+    const result: PPTPage = {
+      id: pptData.id || 'page_1',
+      width: 1920,
+      height: 1080,
+      backgroundColor: pptData.backgroundColor || '#FFFFFF',
+      backgroundImage: pptData.backgroundImage,
+      elements: pptData.elements
+    };
+
+    console.log(`Successfully analyzed PPT with ${result.elements.length} elements`);
+
+    return result;
+
+  } catch (error: any) {
+    console.error('PPT Image Analysis Error:', error);
+    console.error('Error details:', {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack?.split('\n').slice(0, 3)
+    });
     throw error;
   }
 };

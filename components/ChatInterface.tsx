@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Paperclip, Globe, Bot, User, StopCircle, Sparkles, Zap, ArrowRight, ExternalLink, Search, Plus, ChevronDown, Link as LinkIcon, Mic, RotateCcw, RotateCw, Save, X, CornerDownLeft, ArrowUpRight, CheckCircle2, LayoutTemplate, Undo2, Redo2, Image as ImageIcon, Loader2, Download } from 'lucide-react';
-import { createChatStream, generateSlideImage } from '../services/geminiService';
-import { Message, ModelType, SearchMode, SlideDeck } from '../types';
+import { Send, Paperclip, Globe, Bot, User, StopCircle, Sparkles, Zap, ArrowRight, ExternalLink, Search, Plus, ChevronDown, Link as LinkIcon, Mic, RotateCcw, RotateCw, Save, X, CornerDownLeft, ArrowUpRight, CheckCircle2, LayoutTemplate, Undo2, Redo2, Image as ImageIcon, Loader2, Download, Edit, Upload, History } from 'lucide-react';
+import { createChatStream, generateSlideImage, analyzePPTImage } from '../services/geminiService';
+import { Message, ModelType, SearchMode, SlideDeck, PPTPage, PPTHistoryItem } from '../types';
+import PPTEditor from './PPTEditor/PPTEditor';
 
 interface ChatInterfaceProps {
   isSidebarOpen: boolean;
@@ -142,6 +143,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('red_grey_project');
   const [slideDeck, setSlideDeck] = useState<SlideDeck | null>(null);
   const [useReferenceImages, setUseReferenceImages] = useState<boolean>(true); // 启用参考图片
+  const [editingPPT, setEditingPPT] = useState<PPTPage | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [pptHistory, setPptHistory] = useState<PPTHistoryItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -158,6 +163,65 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  // Load PPT history from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('ppt-history');
+    if (saved) {
+      try {
+        setPptHistory(JSON.parse(saved));
+      } catch (error) {
+        console.error('Failed to load PPT history:', error);
+      }
+    }
+  }, []);
+
+  // Save PPT history to localStorage whenever it changes
+  useEffect(() => {
+    if (pptHistory.length > 0) {
+      localStorage.setItem('ppt-history', JSON.stringify(pptHistory));
+    }
+  }, [pptHistory]);
+
+  // Save PPT to history
+  const savePPTToHistory = (deck: SlideDeck) => {
+    const now = Date.now();
+    const id = deck.id || `ppt-${now}`;
+
+    const historyItem: PPTHistoryItem = {
+      id,
+      topic: deck.topic,
+      thumbnail: deck.generatedImage,
+      slideDeck: { ...deck, id, createdAt: deck.createdAt || now },
+      createdAt: deck.createdAt || now,
+      lastModified: now
+    };
+
+    setPptHistory(prev => {
+      // Check if already exists, update it
+      const existing = prev.findIndex(item => item.id === id);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = historyItem;
+        return updated;
+      }
+      // Add new item at the beginning
+      return [historyItem, ...prev];
+    });
+  };
+
+  // Load PPT from history
+  const loadPPTFromHistory = (historyItem: PPTHistoryItem) => {
+    setSlideDeck(historyItem.slideDeck);
+    setIsPPTMode(true);
+    // Clear current messages and add a restoration message
+    setMessages([
+      {
+        role: 'model',
+        content: `已恢复PPT: ${historyItem.topic}`
+      }
+    ]);
+  };
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;
@@ -210,13 +274,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
 
             // Call the image generation service with reference images
             const base64Image = await generateSlideImage(userMessage.content, selectedStyle.suffix, referenceImages);
-            
-            setSlideDeck({
+
+            const newSlideDeck = {
                 topic: userMessage.content,
                 theme: selectedTemplateId,
-                generatedImage: base64Image
-            });
-            
+                generatedImage: base64Image,
+                selectedStyle: selectedStyle
+            };
+
+            setSlideDeck(newSlideDeck);
+
+            // Save to history
+            savePPTToHistory(newSlideDeck);
+
             // Update the bot message to confirm
             setMessages(prev => {
                 const newMsgs = [...prev];
@@ -307,6 +377,108 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
     }
   };
 
+  const handleConvertToEditable = async () => {
+    if (!slideDeck?.generatedImage) return;
+
+    // Check if we have cached analysis result
+    if (slideDeck.analyzedData) {
+      console.log('Using cached analysis data');
+      setEditingPPT(slideDeck.analyzedData);
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      console.log('Starting PPT image analysis...');
+      const pptData = await analyzePPTImage(slideDeck.generatedImage);
+      console.log('Analysis complete, opening editor...');
+
+      // Cache the analysis result
+      setSlideDeck(prev => prev ? { ...prev, analyzedData: pptData } : prev);
+
+      // Open editor
+      setEditingPPT(pptData);
+    } catch (error) {
+      console.error('Failed to convert to editable:', error);
+      alert('转换失败，请查看控制台错误信息');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix to get pure base64
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle upload PPT image
+  const handleUploadPPTImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (!file) return;
+
+      setIsLoading(true);
+      try {
+        console.log('Converting uploaded image to base64...');
+        const base64 = await fileToBase64(file);
+        console.log('Image uploaded successfully');
+
+        // Create base64 data URL for display
+        const imageDataUrl = `data:${file.type};base64,${base64}`;
+
+        // Add user message
+        const userMessage: Message = {
+          role: 'user',
+          content: `已上传PPT图片: ${file.name}`
+        };
+        setMessages(prev => [...prev, userMessage]);
+
+        // Add assistant confirmation message
+        const assistantMessage: Message = {
+          role: 'model',
+          content: '图片已上传成功！点击右上角的"Edit"按钮开始编辑此PPT。'
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+
+        // Store the uploaded image in slideDeck and enter PPT mode
+        const uploadedSlideDeck = {
+          topic: file.name,
+          selectedStyle: PPT_STYLES[0],
+          generatedImage: imageDataUrl
+        };
+
+        setSlideDeck(uploadedSlideDeck);
+
+        // Save to history
+        savePPTToHistory(uploadedSlideDeck);
+
+        // Enter PPT mode
+        setIsPPTMode(true);
+
+      } catch (error) {
+        console.error('Failed to upload image:', error);
+        alert('上传图片失败，请查看控制台错误信息');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    input.click();
+  };
+
   const isLanding = messages.length === 0;
 
   if (isPPTMode) {
@@ -372,6 +544,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
                             rows={1}
                             disabled={isLoading}
                         />
+                         {/* Upload PPT Shortcut */}
+                         <div className="text-xs mt-2 flex items-center gap-2" style={{backgroundColor: '#ff000020', padding: '8px', borderRadius: '4px'}}>
+                             <span className="text-skywork-muted/70">或者</span>
+                             <button
+                                 onClick={handleUploadPPTImage}
+                                 disabled={isAnalyzing}
+                                 className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                             >
+                                 <Upload size={12} />
+                                 上传现有PPT图片
+                             </button>
+                             <span className="text-red-400 font-bold ml-2">← NEW FEATURE</span>
+                         </div>
                          <div className="flex justify-between items-center mt-2">
                              <div className="flex gap-2">
                                 <button className="text-skywork-muted hover:text-white"><Paperclip size={16}/></button>
@@ -397,8 +582,31 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
                       <span className="text-xs text-skywork-muted">Nano Banana Pro</span>
                    </div>
                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setShowHistory(true)}
+                        className="px-4 py-1.5 rounded-full border border-skywork-border text-sm font-medium hover:bg-white/5 text-skywork-text transition-colors flex items-center gap-2"
+                      >
+                          <History size={14} />
+                          History ({pptHistory.length})
+                      </button>
                       <button className="px-4 py-1.5 rounded-full border border-skywork-border text-sm font-medium hover:bg-white/5 text-skywork-text transition-colors" onClick={() => setIsPPTMode(false)}>Exit</button>
-                      <button 
+                      <button
+                        onClick={handleUploadPPTImage}
+                        disabled={isAnalyzing}
+                        className="px-4 py-1.5 rounded-full bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                          {isAnalyzing ? 'Uploading...' : 'Upload PPT'}
+                      </button>
+                      <button
+                        onClick={handleConvertToEditable}
+                        disabled={!slideDeck?.generatedImage || isAnalyzing}
+                        className="px-4 py-1.5 rounded-full bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Edit size={14} />}
+                          {isAnalyzing ? 'Analyzing...' : 'Edit'}
+                      </button>
+                      <button
                         onClick={handleDownload}
                         disabled={!slideDeck?.generatedImage}
                         className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -447,6 +655,72 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
                      )}
                 </div>
             </div>
+
+            {/* PPT Editor Modal - Must be inside PPT mode return */}
+            {editingPPT && (
+                <PPTEditor
+                    initialData={editingPPT}
+                    onClose={() => setEditingPPT(null)}
+                />
+            )}
+
+            {/* PPT History Modal */}
+            {showHistory && (
+                <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-[10000]" onClick={() => setShowHistory(false)}>
+                    <div className="bg-[#1a1a1a] rounded-xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-6 border-b border-gray-700 flex items-center justify-between">
+                            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                                <History size={24} />
+                                PPT历史记录
+                            </h2>
+                            <button
+                                onClick={() => setShowHistory(false)}
+                                className="text-gray-400 hover:text-white transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {pptHistory.length === 0 ? (
+                                <div className="text-center text-gray-500 py-12">
+                                    <History size={48} className="mx-auto mb-4 opacity-50" />
+                                    <p>暂无PPT历史记录</p>
+                                    <p className="text-sm mt-2">生成或上传PPT后会自动保存到这里</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    {pptHistory.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="bg-[#252525] rounded-lg p-4 border border-gray-700 hover:border-blue-500 transition-colors cursor-pointer"
+                                            onClick={() => {
+                                                loadPPTFromHistory(item);
+                                                setShowHistory(false);
+                                            }}
+                                        >
+                                            {item.thumbnail && (
+                                                <div className="aspect-[16/9] w-full bg-gray-800 rounded mb-3 overflow-hidden">
+                                                    <img
+                                                        src={item.thumbnail}
+                                                        alt={item.topic}
+                                                        className="w-full h-full object-contain"
+                                                    />
+                                                </div>
+                                            )}
+                                            <h3 className="font-medium text-white mb-2 truncate">{item.topic}</h3>
+                                            <div className="text-xs text-gray-400 flex justify-between">
+                                                <span>创建: {new Date(item.createdAt).toLocaleDateString()}</span>
+                                                <span>修改: {new Date(item.lastModified).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
   }
@@ -514,6 +788,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
                         rows={1}
                         autoFocus
                     />
+
+                    {/* Upload PPT Shortcut - Show when Slides agent is selected */}
+                    {activeAgent === 'Slides' && (
+                        <div className="text-sm mt-3 flex items-center justify-center gap-2" style={{backgroundColor: '#ff000020', padding: '8px', borderRadius: '8px'}}>
+                            <span className="text-skywork-muted/70">或者</span>
+                            <button
+                                onClick={handleUploadPPTImage}
+                                disabled={isAnalyzing}
+                                className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 font-medium"
+                            >
+                                <Upload size={14} />
+                                上传现有PPT图片
+                            </button>
+                            <span className="text-red-400 font-bold">← NEW!</span>
+                        </div>
+                    )}
 
                     {/* Footer Controls */}
                     <div className="flex items-center justify-between mt-4">
@@ -816,6 +1106,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ isSidebarOpen }) => {
             </div>
             </div>
         </div>
+      )}
+
+      {/* PPT Editor Modal */}
+      {editingPPT && (
+        <PPTEditor
+          initialData={editingPPT}
+          onClose={() => setEditingPPT(null)}
+        />
       )}
     </div>
   );
