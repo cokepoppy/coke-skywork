@@ -3,6 +3,14 @@ import { PPTPage, PPTElement } from '../types';
 
 export async function exportToPNG(canvasElement: HTMLElement): Promise<void> {
   try {
+    // Store original transform and temporarily reset it for export
+    const originalTransform = canvasElement.style.transform;
+    const originalTransformOrigin = canvasElement.style.transformOrigin;
+
+    // Remove transform to capture full-size canvas
+    canvasElement.style.transform = 'none';
+    canvasElement.style.transformOrigin = 'top left';
+
     const canvas = await html2canvas(canvasElement, {
       width: 1920,
       height: 1080,
@@ -10,6 +18,10 @@ export async function exportToPNG(canvasElement: HTMLElement): Promise<void> {
       backgroundColor: '#ffffff',
       logging: false
     });
+
+    // Restore original transform
+    canvasElement.style.transform = originalTransform;
+    canvasElement.style.transformOrigin = originalTransformOrigin;
 
     const link = document.createElement('a');
     link.download = `ppt-slide-${Date.now()}.png`;

@@ -115,6 +115,7 @@ export interface PPTPage {
   height: 1080;
   backgroundColor?: string;
   backgroundImage?: string;  // base64
+  originalImage?: string;  // Original PPT image for displaying cropped regions in ImageElements
   elements: PPTElement[];
 }
 

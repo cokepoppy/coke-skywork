@@ -131,6 +131,70 @@ export const generateSlideImage = async (
   }
 };
 
+/**
+ * Generate a text-free version of the PPT image using Gemini AI image generation
+ * Supports both Nano Banana and Nano Banana Pro models
+ */
+export const removeTextWithAI = async (imageBase64: string, useProModel = false): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  // Choose model: Nano Banana Pro for better quality, Flash for speed
+  const modelName = useProModel ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+
+  const prompt = `Based on this PPT image, generate an exact copy with the following requirements:
+1. Keep ALL icons, charts, decorative elements, and background exactly as they are
+2. Remove ALL text content completely
+3. Naturally fill the text areas with surrounding colors or textures
+4. Ensure the result looks natural and professional, as if the text was never there
+5. Maintain the exact same layout, colors, and style
+6. Output size: 1920x1080 pixels
+
+Generate a clean, text-free version of this presentation slide.`;
+
+  try {
+    console.log(`[AI Text Removal] Using ${modelName} ${useProModel ? '(Nano Banana Pro)' : '(Nano Banana)'} to remove text...`);
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: {
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: 'image/png',
+              data: imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '')
+            }
+          }
+        ]
+      },
+      config: {
+        responseModalities: ['IMAGE'],  // Request image output
+        temperature: 0.4  // Lower temperature for more consistent results
+      }
+    });
+
+    // Extract generated image from response
+    const imagePart = response.candidates?.[0]?.content?.parts?.find((part: any) => part.inlineData);
+
+    if (imagePart?.inlineData?.data) {
+      const textFreeBase64 = `data:image/png;base64,${imagePart.inlineData.data}`;
+      console.log('[AI Text Removal] Successfully generated text-free image');
+      return textFreeBase64;
+    }
+
+    console.warn('[AI Text Removal] No images generated in response, using fallback');
+    return imageBase64;
+  } catch (error: any) {
+    console.error('[AI Text Removal] Failed:', error);
+    console.error('[AI Text Removal] Error details:', {
+      message: error?.message,
+      status: error?.status
+    });
+    // Return original image as fallback
+    return imageBase64;
+  }
+};
+
 export const analyzePPTImage = async (imageBase64: string): Promise<PPTPage> => {
   // Initialize inside function to ensure the latest API key is used
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -138,13 +202,20 @@ export const analyzePPTImage = async (imageBase64: string): Promise<PPTPage> => 
   const prompt = `你是一位专业的PPT设计分析专家。请仔细分析这张PPT图片（分辨率假定为1920x1080），提取所有视觉元素的详细信息，并以JSON格式输出。
 
 要求：
-1. 识别所有文本、形状、图片、图表元素
+1. 识别所有文本、形状、图片、图标、图表元素
 2. 精确测量每个元素的位置(x,y)和尺寸(width,height)，单位为像素，基于1920x1080画布
-3. 提取文本的内容、字号、字体粗细、颜色、对齐方式
-4. 识别形状的类型、背景色、边框色、圆角
-5. 从底层到顶层标注z-index（背景元素z-index=0，最上层元素最大）
-6. 颜色使用十六进制格式(如 #FF0000)
-7. 为每个元素生成唯一的id（如 elem_1, elem_2...）
+3. 对于文本元素：
+   - 提取完整的文本内容、字号、字体粗细、颜色、对齐方式
+   - **重要**：文本框的height必须足够大，能完整显示所有文字内容
+   - 计算高度时考虑：字号 × 行数 × 1.4（行高系数），并至少增加10%的余量
+4. 对于图片/图标元素：
+   - **重要**：不要尝试提取图片的base64数据或URL
+   - 只需标记为type: "image"，并提供准确的位置(x,y)和尺寸(width,height)
+   - 将src字段设置为空字符串 ""
+5. 识别形状的类型、背景色、边框色、圆角
+6. 从底层到顶层标注z-index（背景元素z-index=0，最上层元素最大）
+7. 颜色使用十六进制格式(如 #FF0000)
+8. 为每个元素生成唯一的id（如 elem_1, elem_2...）
 
 输出格式（必须是有效的JSON）：
 {
@@ -179,6 +250,16 @@ export const analyzePPTImage = async (imageBase64: string): Promise<PPTPage> => 
       "shapeType": "rectangle",
       "backgroundColor": "#F0F0F0",
       "borderRadius": 10
+    },
+    {
+      "id": "elem_3",
+      "type": "image",
+      "x": 800,
+      "y": 400,
+      "width": 120,
+      "height": 120,
+      "zIndex": 3,
+      "src": ""
     }
   ]
 }
@@ -186,7 +267,9 @@ export const analyzePPTImage = async (imageBase64: string): Promise<PPTPage> => 
 重要提示：
 - 只输出JSON数据，不要添加任何其他文字说明
 - 确保JSON格式正确，可以被解析
-- 识别所有可见的元素，包括背景、装饰性元素
+- 识别所有可见的元素，包括背景、装饰性元素、小图标
+- 对于图片/图标元素，src字段必须设置为空字符串 ""（不要尝试提取图片数据）
+- 文本框高度要留有余量，确保文字完整显示
 - 坐标和尺寸要尽可能精确`;
 
   try {
@@ -245,10 +328,21 @@ export const analyzePPTImage = async (imageBase64: string): Promise<PPTPage> => 
       height: 1080,
       backgroundColor: pptData.backgroundColor || '#FFFFFF',
       backgroundImage: pptData.backgroundImage,
+      originalImage: imageBase64, // Store original image for displaying cropped regions in ImageElements
       elements: pptData.elements
     };
 
-    console.log(`Successfully analyzed PPT with ${result.elements.length} elements`);
+    console.log(`[Gemini Analysis] Successfully analyzed PPT with ${result.elements.length} elements`);
+    console.log('[Gemini Analysis] Elements breakdown:');
+    result.elements.forEach((el, idx) => {
+      console.log(`  [${idx}] ${el.type} - id: ${el.id}, position: (${el.x}, ${el.y}), size: ${el.width}x${el.height}`);
+      if (el.type === 'image') {
+        console.log(`      Image src: ${el.src?.substring(0, 50)}... (length: ${el.src?.length || 0})`);
+      } else if (el.type === 'text') {
+        console.log(`      Text content: "${el.content?.substring(0, 30)}..."`);
+      }
+    });
+    console.log(`[Gemini Analysis] originalImage stored: ${result.originalImage ? 'YES (length: ' + result.originalImage.length + ')' : 'NO'}`);
 
     return result;
 

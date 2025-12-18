@@ -12,6 +12,7 @@ interface EditableElementProps {
   onSelect: () => void;
   onChange: (updated: Partial<PPTElement>) => void;
   scale: number;
+  originalImage?: string;
 }
 
 const EditableElement: React.FC<EditableElementProps> = ({
@@ -19,7 +20,8 @@ const EditableElement: React.FC<EditableElementProps> = ({
   isSelected,
   onSelect,
   onChange,
-  scale
+  scale,
+  originalImage
 }) => {
   const renderElement = () => {
     if (isTextElement(element)) {
@@ -32,12 +34,15 @@ const EditableElement: React.FC<EditableElementProps> = ({
     } else if (isShapeElement(element)) {
       return <ShapeElement element={element} />;
     } else if (isImageElement(element)) {
-      return <ImageElement element={element} />;
+      return <ImageElement element={element} originalImage={originalImage} />;
     } else if (isChartElement(element)) {
       return <ChartElement element={element} />;
     }
     return null;
   };
+
+  // For non-text elements, reduce opacity since they're shown in background layer
+  const elementOpacity = isTextElement(element) ? 1 : (isSelected ? 0.3 : 0.05);
 
   return (
     <Rnd
@@ -60,7 +65,8 @@ const EditableElement: React.FC<EditableElementProps> = ({
       className={`editable-element ${isSelected ? 'selected' : ''}`}
       style={{
         zIndex: element.zIndex,
-        transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined
+        transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
+        opacity: elementOpacity
       }}
       onClick={(e) => {
         e.stopPropagation();

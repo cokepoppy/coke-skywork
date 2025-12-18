@@ -60,7 +60,13 @@ const TextElement: React.FC<TextElementProps> = ({ element, onChange }) => {
         lineHeight: element.lineHeight || 1.4,
         letterSpacing: element.letterSpacing ? `${element.letterSpacing}px` : undefined,
         outline: 'none',
-        cursor: isEditing ? 'text' : 'move'
+        cursor: isEditing ? 'text' : 'move',
+        padding: '4px',
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: element.textAlign === 'center' ? 'center' : element.textAlign === 'right' ? 'flex-end' : 'flex-start'
       }}
     >
       {element.content}

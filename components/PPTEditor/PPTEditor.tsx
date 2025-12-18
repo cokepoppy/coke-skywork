@@ -8,7 +8,7 @@ import './PPTEditor.css';
 
 interface PPTEditorProps {
   initialData: PPTPage;
-  onClose: () => void;
+  onClose: (updatedData?: PPTPage) => void;
 }
 
 const PPTEditor: React.FC<PPTEditorProps> = ({ initialData, onClose }) => {
@@ -97,8 +97,13 @@ const PPTEditor: React.FC<PPTEditorProps> = ({ initialData, onClose }) => {
     ? pptData.elements.find(el => el.id === selectedElementId) || null
     : null;
 
+  const handleClose = () => {
+    // Save current state when closing
+    onClose(pptData);
+  };
+
   return (
-    <div className="ppt-editor-overlay" onClick={onClose}>
+    <div className="ppt-editor-overlay" onClick={handleClose}>
       <div className="ppt-editor-container" onClick={(e) => e.stopPropagation()}>
         <Toolbar
           scale={scale}
@@ -107,7 +112,7 @@ const PPTEditor: React.FC<PPTEditorProps> = ({ initialData, onClose }) => {
           onRedo={redo}
           onExportPNG={handleExportPNG}
           onExportHTML={handleExportHTML}
-          onClose={onClose}
+          onClose={handleClose}
           canUndo={history.past.length > 0}
           canRedo={history.future.length > 0}
         />

@@ -1,13 +1,16 @@
 import React from 'react';
-import { MessageSquare, Compass, LayoutGrid, Clock, Settings, Plus, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { MessageSquare, Compass, LayoutGrid, Clock, Settings, Plus, ChevronLeft, ChevronRight, Search, Presentation } from 'lucide-react';
+import { PPTHistoryItem } from '../types';
 
 interface SidebarProps {
   isOpen: boolean;
   toggleSidebar: () => void;
   startNewChat: () => void;
+  pptHistory?: PPTHistoryItem[];
+  onLoadPPT?: (historyItem: PPTHistoryItem) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, startNewChat }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, startNewChat, pptHistory = [], onLoadPPT }) => {
   return (
     <div 
       className={`fixed left-0 top-0 h-full bg-skywork-sidebar border-r border-skywork-border transition-all duration-300 z-50 flex flex-col ${isOpen ? 'w-64' : 'w-16'}`}
@@ -39,14 +42,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, startNewChat }
           <NavItem icon={<LayoutGrid size={20} />} label="Library" isOpen={isOpen} />
         </div>
 
-        {/* History Section (Mock) */}
-        {isOpen && (
+        {/* PPT History Section */}
+        {isOpen && pptHistory.length > 0 && (
           <div className="mt-8 px-4">
-            <h3 className="text-xs font-medium text-skywork-muted uppercase tracking-wider mb-3">Recent</h3>
+            <h3 className="text-xs font-medium text-skywork-muted uppercase tracking-wider mb-3">Recent PPTs</h3>
             <div className="space-y-1">
-              <HistoryItem label="React Component Design" />
-              <HistoryItem label="Analysis of Q3 Reports" />
-              <HistoryItem label="Travel Itinerary Japan" />
+              {pptHistory.slice(0, 5).map((item) => (
+                <PPTHistoryItemComponent
+                  key={item.id}
+                  item={item}
+                  onClick={() => onLoadPPT?.(item)}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -91,5 +98,38 @@ const HistoryItem = ({ label }: { label: string }) => (
     {label}
   </button>
 );
+
+const PPTHistoryItemComponent = ({ item, onClick }: { item: PPTHistoryItem, onClick: () => void }) => {
+  const formatDate = (timestamp: number) => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return `${days}d ago`;
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-2 py-2 text-sm hover:bg-skywork-surface rounded transition-colors group"
+    >
+      <div className="flex items-start gap-2">
+        <Presentation size={16} className="mt-0.5 text-blue-400 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-skywork-muted group-hover:text-white truncate font-medium">
+            {item.topic}
+          </p>
+          <p className="text-xs text-skywork-muted mt-0.5">
+            {formatDate(item.lastModified || item.createdAt)}
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+};
 
 export default Sidebar;

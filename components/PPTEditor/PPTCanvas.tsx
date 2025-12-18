@@ -17,6 +17,13 @@ const PPTCanvas: React.FC<PPTCanvasProps> = ({
   onUpdateElement,
   scale
 }) => {
+  console.log('[PPTCanvas] Rendering with:', {
+    elementsCount: pptData.elements.length,
+    hasOriginalImage: !!pptData.originalImage,
+    originalImageLength: pptData.originalImage?.length || 0,
+    scale
+  });
+
   const handleCanvasClick = (e: React.MouseEvent) => {
     // Deselect when clicking on canvas background
     if (e.target === e.currentTarget) {
@@ -42,10 +49,31 @@ const PPTCanvas: React.FC<PPTCanvasProps> = ({
           backgroundColor: pptData.backgroundColor || '#FFFFFF',
           backgroundImage: pptData.backgroundImage ? `url(${pptData.backgroundImage})` : undefined,
           backgroundSize: 'cover',
-          backgroundPosition: 'center'
+          backgroundPosition: 'center',
+          position: 'relative'
         }}
         onClick={handleCanvasClick}
       >
+        {/* Text-free background image - shows all icons, charts, decorations without text */}
+        {pptData.backgroundImage && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 1920,
+              height: 1080,
+              backgroundImage: `url(${pptData.backgroundImage})`,
+              backgroundSize: '1920px 1080px',
+              backgroundPosition: '0 0',
+              backgroundRepeat: 'no-repeat',
+              pointerEvents: 'none', // Allow clicking through to elements below
+              zIndex: 0
+            }}
+          />
+        )}
+
+        {/* Editable elements layer */}
         {pptData.elements.map((element) => (
           <EditableElement
             key={element.id}
@@ -54,6 +82,7 @@ const PPTCanvas: React.FC<PPTCanvasProps> = ({
             onSelect={() => onSelectElement(element.id)}
             onChange={(updates) => onUpdateElement(element.id, updates)}
             scale={scale}
+            originalImage={pptData.originalImage}
           />
         ))}
       </div>
