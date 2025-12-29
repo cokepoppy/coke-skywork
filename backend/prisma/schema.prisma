@@ -1,0 +1,219 @@
+// Prisma schema for Skywork AI Backend
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// User roles
+enum Role {
+  USER
+  ADMIN
+}
+
+// Credit transaction types
+enum CreditType {
+  SIGNUP      // 注册赠送
+  PURCHASE    // 购买
+  USAGE       // 使用
+  REFUND      // 退款
+  SUBSCRIPTION // 订阅赠送
+  ADMIN_ADJUST // 管理员调整
+}
+
+// Subscription plans
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+// Subscription status
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+  INCOMPLETE
+}
+
+// Payment status
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+// Users table
+model User {
+  id            String         @id @default(uuid())
+  googleId      String?        @unique
+  email         String         @unique
+  name          String
+  avatar        String?
+  role          Role           @default(USER)
+  credits       Int            @default(100)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  sessions      Session[]
+  creditLogs    CreditLog[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  usageLogs     UsageLog[]
+  presentations Presentation[]
+
+  @@map("users")
+  @@index([email])
+  @@index([googleId])
+}
+
+// Session table (for JWT refresh tokens)
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique @db.VarChar(500)
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+  @@index([userId])
+}
+
+// Credit log table
+model CreditLog {
+  id          String     @id @default(uuid())
+  userId      String
+  amount      Int        // Positive = add, Negative = deduct
+  balance     Int        // Balance after this transaction
+  type        CreditType
+  description String?
+  metadata    Json?      // Additional info (e.g., feature used, package purchased)
+  createdAt   DateTime   @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("credit_logs")
+  @@index([userId, createdAt])
+  @@index([type])
+}
+
+// Subscription table
+model Subscription {
+  id                   String             @id @default(uuid())
+  userId               String
+  plan                 SubscriptionPlan
+  status               SubscriptionStatus
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([status])
+}
+
+// Payment table
+model Payment {
+  id                String        @id @default(uuid())
+  userId            String
+  stripePaymentId   String        @unique
+  stripeSessionId   String?       @unique
+  amount            Int           // In cents
+  currency          String        @default("usd")
+  status            PaymentStatus
+  creditsPurchased  Int
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Usage log table (for analytics and debugging)
+model UsageLog {
+  id         String   @id @default(uuid())
+  userId     String
+  feature    String   // 'chat', 'ppt_generate', 'ppt_edit', etc.
+  model      String?  // 'gemini-flash', 'gemini-pro', etc.
+  credits    Int      // Credits consumed
+  duration   Int?     // Request duration in ms
+  success    Boolean  @default(true)
+  errorMsg   String?  @db.Text
+  metadata   Json?    // Additional tracking data
+  createdAt  DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("usage_logs")
+  @@index([userId, createdAt])
+  @@index([feature])
+  @@index([createdAt])
+}
+
+// Credit packages (for purchase)
+model CreditPackage {
+  id          String   @id @default(uuid())
+  name        String
+  credits     Int
+  price       Int      // In cents
+  currency    String   @default("usd")
+  stripePriceId String? @unique
+  isActive    Boolean  @default(true)
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("credit_packages")
+  @@index([isActive, displayOrder])
+}
+
+// PPT presentations
+model Presentation {
+  id              String   @id @default(uuid())
+  userId          String
+  topic           String   @db.VarChar(500)
+  theme           String   // Style/template ID used
+  generatedImage  String?  @db.LongText // Base64 or URL of generated image/HTML
+  htmlContent     String?  @db.LongText // Raw HTML content if applicable
+  thumbnailData   String?  @db.MediumText // Smaller thumbnail for list view
+  analyzedData    Json?    // Analyzed PPT structure data
+  metadata        Json?    // Additional metadata (style info, generation params, etc.)
+  createdAt       DateTime @default(now())
+  lastModified    DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("presentations")
+  @@index([userId, lastModified])
+  @@index([createdAt])
+}

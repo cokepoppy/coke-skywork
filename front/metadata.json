@@ -1,0 +1,5 @@
+{
+  "name": "Coke Agent",
+  "description": "An AI-powered intelligent assistant platform powered by Google Gemini, featuring real-time search grounding, deep thinking capabilities, and a sleek dark-mode UI.",
+  "requestFramePermissions": []
+}

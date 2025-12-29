@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: skywork-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: skywork_root_pass
+      MYSQL_DATABASE: skywork_db
+      MYSQL_USER: skywork_user
+      MYSQL_PASSWORD: skywork_pass
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - skywork-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: skywork-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - skywork-network
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  skywork-network:
+    driver: bridge
