@@ -31,16 +31,30 @@ export enum SearchMode {
   ON = 'on'
 }
 
+// Individual slide in a deck
+export interface Slide {
+  id: string; // Unique ID for this slide
+  pageNumber: number; // 1-indexed page number
+  topic: string; // Topic for this specific slide
+  generatedImage?: string; // Base64 image data or HTML data URL
+  htmlContent?: string; // Raw HTML content for HTML-based slides
+  analyzedData?: PPTPage; // Cached analysis result to avoid re-analyzing
+  isHtmlMode?: boolean; // Flag to indicate if this is HTML mode
+}
+
 // PPT Generation Types
 export interface SlideDeck {
   id?: string; // Unique ID for history tracking
-  topic: string;
+  topic: string; // Overall deck topic
   theme?: string;
-  generatedImage?: string; // Base64 image data or HTML data URL
-  analyzedData?: PPTPage; // Cached analysis result to avoid re-analyzing
+  slides: Slide[]; // Array of slides in the deck
   selectedStyle?: any; // Selected PPT style
   createdAt?: number; // Timestamp for sorting
-  htmlContent?: string; // Raw HTML content for HTML-based PPTs
+  // Legacy fields for backward compatibility (will be deprecated)
+  generatedImage?: string; // Base64 image data or HTML data URL - deprecated, use slides array
+  analyzedData?: PPTPage; // Cached analysis result to avoid re-analyzing - deprecated
+  htmlContent?: string; // Raw HTML content for HTML-based PPTs - deprecated
+  isHtmlMode?: boolean; // Flag to indicate if this is HTML mode - deprecated
 }
 
 // PPT History Item

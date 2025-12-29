@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Send, Paperclip, Globe, Bot, User, StopCircle, Sparkles, Zap, ArrowRight, ExternalLink, Search, Plus, ChevronDown, Link as LinkIcon, Mic, RotateCcw, RotateCw, Save, X, CornerDownLeft, ArrowUpRight, CheckCircle2, LayoutTemplate, Undo2, Redo2, Image as ImageIcon, Loader2, Download, Edit, Upload, History } from 'lucide-react';
 import { createChatStream, generateSlideImage, analyzePPTImage } from '../services/geminiService';
-import { Message, ModelType, SearchMode, SlideDeck, PPTPage, PPTHistoryItem } from '../types';
+import { Message, ModelType, SearchMode, SlideDeck, Slide, PPTPage, PPTHistoryItem } from '../types';
 import PPTEditor from './PPTEditor/PPTEditor';
 import { generateTextFreeBackground } from '../utils/imageProcessing';
 
@@ -156,6 +156,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [editingPPT, setEditingPPT] = useState<PPTPage | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [useNanoBananaPro, setUseNanoBananaPro] = useState<boolean>(true); // Nano Banana Pro toggle
+  const [isEditMode, setIsEditMode] = useState(false); // Preview vs Edit mode
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -402,17 +403,38 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   return title || 'Untitled Presentation';
                 };
 
-                const newSlideDeck = {
-                    topic: extractTitle(userMessage.content),
-                    theme: selectedTemplateId,
+                // Create new slide
+                const slideTitle = extractTitle(userMessage.content);
+                const newSlide: Slide = {
+                    id: `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    pageNumber: slideDeck ? (slideDeck.slides?.length || 0) + 1 : 1,
+                    topic: slideTitle,
                     generatedImage: base64Image,
-                    selectedStyle: selectedStyle
+                    isHtmlMode: false
+                };
+
+                // Update or create slide deck
+                const newSlideDeck: SlideDeck = slideDeck ? {
+                    ...slideDeck,
+                    slides: [...(slideDeck.slides || []), newSlide],
+                    // Keep legacy fields for backward compatibility
+                    generatedImage: base64Image,
+                } : {
+                    id: `deck-${Date.now()}`,
+                    topic: slideTitle,
+                    theme: selectedTemplateId,
+                    slides: [newSlide],
+                    selectedStyle: selectedStyle,
+                    createdAt: Date.now(),
+                    // Legacy fields
+                    generatedImage: base64Image,
                 };
 
                 console.log('[PPT] Setting slideDeck state with (Image mode):', {
                     topic: newSlideDeck.topic,
                     theme: newSlideDeck.theme,
-                    hasGeneratedImage: !!newSlideDeck.generatedImage,
+                    totalSlides: newSlideDeck.slides.length,
+                    newSlideNumber: newSlide.pageNumber,
                 });
 
                 setSlideDeck(newSlideDeck);
@@ -487,20 +509,43 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   return title || 'Untitled Presentation';
                 };
 
-                const newSlideDeck = {
-                    topic: extractTitle(userMessage.content),
+                // Create new slide
+                const slideTitle = extractTitle(userMessage.content);
+                const newSlide: Slide = {
+                    id: `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    pageNumber: slideDeck ? (slideDeck.slides?.length || 0) + 1 : 1,
+                    topic: slideTitle,
+                    generatedImage: htmlBlobUrl,
+                    htmlContent: cleanedHTML,
+                    isHtmlMode: true
+                };
+
+                // Update or create slide deck
+                const newSlideDeck: SlideDeck = slideDeck ? {
+                    ...slideDeck,
+                    slides: [...(slideDeck.slides || []), newSlide],
+                    // Keep legacy fields for backward compatibility
+                    generatedImage: htmlBlobUrl,
+                    htmlContent: cleanedHTML,
+                    isHtmlMode: true
+                } : {
+                    id: `deck-${Date.now()}`,
+                    topic: slideTitle,
                     theme: selectedTemplateId,
-                    generatedImage: htmlBlobUrl, // Store HTML as blob URL
+                    slides: [newSlide],
                     selectedStyle: selectedStyle,
-                    htmlContent: cleanedHTML, // Store raw HTML for potential editing
-                    isHtmlMode: true // Flag to indicate this is HTML mode
+                    createdAt: Date.now(),
+                    // Legacy fields
+                    generatedImage: htmlBlobUrl,
+                    htmlContent: cleanedHTML,
+                    isHtmlMode: true
                 };
 
                 console.log('[PPT] Setting slideDeck state with:', {
                     topic: newSlideDeck.topic,
                     theme: newSlideDeck.theme,
-                    hasGeneratedImage: !!newSlideDeck.generatedImage,
-                    hasHtmlContent: !!newSlideDeck.htmlContent,
+                    totalSlides: newSlideDeck.slides.length,
+                    newSlideNumber: newSlide.pageNumber,
                 });
 
                 setSlideDeck(newSlideDeck);
@@ -852,82 +897,115 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       </span>
                    </div>
                    <div className="flex items-center gap-3">
-                      <button className="px-4 py-1.5 rounded-full border border-skywork-border text-sm font-medium hover:bg-white/5 text-skywork-text transition-colors" onClick={() => setIsPPTMode(false)}>Exit</button>
-                      <button
-                        onClick={handleUploadPPTImage}
-                        disabled={isAnalyzing}
-                        className="px-4 py-1.5 rounded-full bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                          {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                          {isAnalyzing ? 'Uploading...' : 'Upload PPT'}
-                      </button>
-                      <button
-                        onClick={handleConvertToEditable}
-                        disabled={!slideDeck?.generatedImage || isAnalyzing}
-                        className="px-4 py-1.5 rounded-full bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                          {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Edit size={14} />}
-                          {isAnalyzing ? 'Analyzing...' : 'Edit'}
-                      </button>
-                      <button
-                        onClick={handleDownload}
-                        disabled={!slideDeck?.generatedImage}
-                        className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                          <Download size={14} /> Download
-                      </button>
+                      {!isEditMode ? (
+                        <>
+                          {/* Preview Mode Buttons */}
+                          <button
+                            className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                            onClick={() => setIsEditMode(true)}
+                          >
+                            <Edit size={14} /> Edit
+                          </button>
+                          <button
+                            onClick={handleDownload}
+                            disabled={!slideDeck?.generatedImage && !slideDeck?.slides?.length}
+                            className="px-4 py-1.5 rounded-full bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Download size={14} /> Download
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {/* Edit Mode Buttons */}
+                          <button
+                            className="px-4 py-1.5 rounded-full bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 flex items-center gap-2"
+                            onClick={() => {
+                              // TODO: Save edit changes
+                              setIsEditMode(false);
+                            }}
+                          >
+                            <Save size={14} /> Save
+                          </button>
+                          <button
+                            className="px-4 py-1.5 rounded-full border border-skywork-border text-sm font-medium hover:bg-white/5 text-skywork-text transition-colors"
+                            onClick={() => setIsEditMode(false)}
+                          >
+                            <X size={14} /> Cancel
+                          </button>
+                        </>
+                      )}
                    </div>
                 </div>
                 
-                {/* Slides Container */}
-                <div className="flex-1 overflow-y-auto p-8 scroll-smooth flex flex-col items-center">
-                     {isLoading && !slideDeck?.generatedImage ? (
+                {/* Slides Container - Display all slides vertically */}
+                <div className="flex-1 overflow-y-auto p-8 scroll-smooth flex flex-col items-center gap-8">
+                     {isLoading && !slideDeck?.slides?.length && !slideDeck?.generatedImage ? (
                          <div className="h-full flex flex-col items-center justify-center">
                              <Loader2 size={48} className="text-blue-500 animate-spin mb-4" />
                              <p className="text-skywork-muted font-medium">Generating slide visual...</p>
                          </div>
-                     ) : slideDeck?.generatedImage ? (
-                        <div className="w-full max-w-[1024px] animate-fade-in">
-                            {/* Debug info */}
-                            {console.log('[PPT Render] Displaying PPT:', {
-                                hasGeneratedImage: !!slideDeck?.generatedImage,
-                                imageUrl: slideDeck?.generatedImage,
-                                isHtmlMode: slideDeck?.isHtmlMode,
-                                hasHtmlContent: !!slideDeck?.htmlContent,
-                            })}
-                            <div className={slideDeck.isHtmlMode ? "w-full bg-skywork-surface border border-skywork-border rounded-xl overflow-hidden shadow-2xl relative group" : "aspect-[16/9] w-full bg-skywork-surface border border-skywork-border rounded-xl overflow-hidden shadow-2xl relative group"}>
-                                {/* Check if this is HTML mode or image mode */}
-                                {slideDeck.isHtmlMode ? (
-                                    <iframe
-                                        src={slideDeck.generatedImage}
-                                        title="Generated Slide"
-                                        className="w-full border-0"
-                                        style={{ height: '80vh', minHeight: '600px' }}
-                                        sandbox="allow-same-origin allow-scripts"
-                                    />
-                                ) : (
-                                    <img
-                                        src={slideDeck.generatedImage}
-                                        alt="Generated Slide"
-                                        className="w-full h-full object-contain"
-                                    />
-                                )}
-                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                    <button 
-                                        className="bg-white text-black px-4 py-2 rounded-full font-medium shadow-lg transform translate-y-2 group-hover:translate-y-0 transition-all pointer-events-auto flex items-center gap-2"
-                                        onClick={() => {
-                                            window.open(slideDeck.generatedImage, '_blank');
-                                        }}
-                                    >
-                                        <ExternalLink size={16} /> Open Full Size
-                                    </button>
+                     ) : slideDeck && (slideDeck.slides?.length > 0 || slideDeck.generatedImage) ? (
+                        <>
+                            {/* Display all slides from the slides array */}
+                            {slideDeck.slides && slideDeck.slides.length > 0 ? (
+                                slideDeck.slides.map((slide, index) => (
+                                    <div key={slide.id} className="w-full max-w-6xl animate-fade-in">
+                                        {/* Page number indicator */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-sm font-medium text-skywork-muted">
+                                                Page {slide.pageNumber} of {slideDeck.slides.length}
+                                            </span>
+                                            <span className="text-xs text-skywork-muted/70">
+                                                {slide.topic}
+                                            </span>
+                                        </div>
+                                        {/* Container with 16:9 aspect ratio and black background */}
+                                        <div className="aspect-[16/9] w-full bg-black border-4 border-gray-800 rounded-xl overflow-hidden shadow-2xl relative group">
+                                            {/* Check if this is HTML mode or image mode */}
+                                            {slide.isHtmlMode ? (
+                                                <iframe
+                                                    src={slide.generatedImage}
+                                                    title={`Slide ${slide.pageNumber}`}
+                                                    className="w-full h-full border-0"
+                                                    sandbox="allow-same-origin allow-scripts"
+                                                />
+                                            ) : (
+                                                <img
+                                                    src={slide.generatedImage}
+                                                    alt={`Slide ${slide.pageNumber}`}
+                                                    className="w-full h-full object-contain"
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            ) : slideDeck.generatedImage ? (
+                                /* Legacy single slide display for backward compatibility */
+                                <div className="w-full max-w-6xl animate-fade-in">
+                                    {console.log('[PPT Render] Displaying legacy PPT:', {
+                                        hasGeneratedImage: !!slideDeck?.generatedImage,
+                                        isHtmlMode: slideDeck?.isHtmlMode,
+                                    })}
+                                    <div className="aspect-[16/9] w-full bg-black border-4 border-gray-800 rounded-xl overflow-hidden shadow-2xl relative group">
+                                        {slideDeck.isHtmlMode ? (
+                                            <iframe
+                                                src={slideDeck.generatedImage}
+                                                title="Generated Slide"
+                                                className="w-full h-full border-0"
+                                                sandbox="allow-same-origin allow-scripts"
+                                            />
+                                        ) : (
+                                            <img
+                                                src={slideDeck.generatedImage}
+                                                alt="Generated Slide"
+                                                className="w-full h-full object-contain"
+                                            />
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="mt-4 flex justify-between items-center text-xs text-skywork-muted px-2">
-                                <span>Generated with Gemini 3 Pro Image Preview</span>
-                                <span>Style: {PPT_STYLES.find(s => s.id === slideDeck.theme)?.title || 'Custom'}</span>
-                            </div>
-                        </div>
+                            ) : null}
+
+                        </>
                      ) : (
                          <div className="h-full flex flex-col items-center justify-center text-skywork-muted/50">
                              <ImageIcon size={64} className="mb-4 opacity-50" />
