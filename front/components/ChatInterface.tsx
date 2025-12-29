@@ -157,6 +157,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [useNanoBananaPro, setUseNanoBananaPro] = useState<boolean>(true); // Nano Banana Pro toggle
   const [isEditMode, setIsEditMode] = useState(false); // Preview vs Edit mode
+  const [editingSlides, setEditingSlides] = useState<Map<string, string>>(new Map()); // Store edited HTML content by slide ID
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -920,15 +921,46 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           <button
                             className="px-4 py-1.5 rounded-full bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 flex items-center gap-2"
                             onClick={() => {
-                              // TODO: Save edit changes
+                              // Apply edited content to slides
+                              if (slideDeck && editingSlides.size > 0) {
+                                const updatedSlides = slideDeck.slides.map(slide => {
+                                  const editedContent = editingSlides.get(slide.id);
+                                  if (editedContent && slide.htmlContent) {
+                                    // Create new blob URL from edited HTML
+                                    const htmlBlob = new Blob([editedContent], { type: 'text/html' });
+                                    const htmlBlobUrl = URL.createObjectURL(htmlBlob);
+                                    return {
+                                      ...slide,
+                                      htmlContent: editedContent,
+                                      generatedImage: htmlBlobUrl
+                                    };
+                                  }
+                                  return slide;
+                                });
+
+                                setSlideDeck({
+                                  ...slideDeck,
+                                  slides: updatedSlides
+                                });
+
+                                // Save to history
+                                onSavePPTToHistory({
+                                  ...slideDeck,
+                                  slides: updatedSlides
+                                });
+                              }
                               setIsEditMode(false);
+                              setEditingSlides(new Map());
                             }}
                           >
                             <Save size={14} /> Save
                           </button>
                           <button
                             className="px-4 py-1.5 rounded-full border border-skywork-border text-sm font-medium hover:bg-white/5 text-skywork-text transition-colors"
-                            onClick={() => setIsEditMode(false)}
+                            onClick={() => {
+                              setIsEditMode(false);
+                              setEditingSlides(new Map());
+                            }}
                           >
                             <X size={14} /> Cancel
                           </button>
@@ -959,24 +991,55 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                                 {slide.topic}
                                             </span>
                                         </div>
-                                        {/* Container with 16:9 aspect ratio and black background */}
-                                        <div className="aspect-[16/9] w-full bg-black border-4 border-gray-800 rounded-xl overflow-hidden shadow-2xl relative group">
-                                            {/* Check if this is HTML mode or image mode */}
-                                            {slide.isHtmlMode ? (
-                                                <iframe
-                                                    src={slide.generatedImage}
-                                                    title={`Slide ${slide.pageNumber}`}
-                                                    className="w-full h-full border-0"
-                                                    sandbox="allow-same-origin allow-scripts"
-                                                />
-                                            ) : (
-                                                <img
-                                                    src={slide.generatedImage}
-                                                    alt={`Slide ${slide.pageNumber}`}
-                                                    className="w-full h-full object-contain"
-                                                />
-                                            )}
-                                        </div>
+                                        {/* Edit Mode: Show HTML editor for HTML slides */}
+                                        {isEditMode && slide.isHtmlMode && slide.htmlContent ? (
+                                            <div className="w-full space-y-4">
+                                                {/* HTML Editor */}
+                                                <div className="border border-skywork-border rounded-lg overflow-hidden">
+                                                    <div className="bg-skywork-surface/50 px-4 py-2 border-b border-skywork-border">
+                                                        <span className="text-xs font-medium text-skywork-muted">HTML Editor</span>
+                                                    </div>
+                                                    <textarea
+                                                        className="w-full h-96 p-4 bg-skywork-bg text-skywork-text font-mono text-sm resize-none focus:outline-none"
+                                                        value={editingSlides.get(slide.id) || slide.htmlContent}
+                                                        onChange={(e) => {
+                                                            const newMap = new Map(editingSlides);
+                                                            newMap.set(slide.id, e.target.value);
+                                                            setEditingSlides(newMap);
+                                                        }}
+                                                        spellCheck={false}
+                                                    />
+                                                </div>
+                                                {/* Preview */}
+                                                <div className="aspect-[16/9] w-full bg-black border-4 border-gray-800 rounded-xl overflow-hidden shadow-2xl">
+                                                    <iframe
+                                                        srcDoc={editingSlides.get(slide.id) || slide.htmlContent}
+                                                        title={`Preview ${slide.pageNumber}`}
+                                                        className="w-full h-full border-0"
+                                                        sandbox="allow-same-origin allow-scripts"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* Preview Mode: Show slide normally */
+                                            <div className="aspect-[16/9] w-full bg-black border-4 border-gray-800 rounded-xl overflow-hidden shadow-2xl relative group">
+                                                {/* Check if this is HTML mode or image mode */}
+                                                {slide.isHtmlMode ? (
+                                                    <iframe
+                                                        src={slide.generatedImage}
+                                                        title={`Slide ${slide.pageNumber}`}
+                                                        className="w-full h-full border-0"
+                                                        sandbox="allow-same-origin allow-scripts"
+                                                    />
+                                                ) : (
+                                                    <img
+                                                        src={slide.generatedImage}
+                                                        alt={`Slide ${slide.pageNumber}`}
+                                                        className="w-full h-full object-contain"
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             ) : slideDeck.generatedImage ? (
