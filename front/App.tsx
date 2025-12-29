@@ -145,7 +145,7 @@ const App: React.FC = () => {
   };
 
   // Save PPT to history (called by ChatInterface)
-  const savePPTToHistory = async (deck: SlideDeck) => {
+  const savePPTToHistory = useCallback(async (deck: SlideDeck) => {
     const now = Date.now();
     const id = deck.id || `ppt-${now}`;
 
@@ -253,10 +253,10 @@ const App: React.FC = () => {
         console.error('[App] Fallback save also failed:', fallbackError);
       }
     }
-  };
+  }, [sessionKey]);
 
   // Load PPT from history (called by Sidebar)
-  const loadPPTFromHistory = async (historyItem: PPTHistoryItem) => {
+  const loadPPTFromHistory = useCallback(async (historyItem: PPTHistoryItem) => {
     console.log('[App] Load PPT from history requested:', {
       id: historyItem.id,
       topic: historyItem.topic,
@@ -303,7 +303,7 @@ const App: React.FC = () => {
       setPptToLoad(historyItem);
       console.log('[App] pptToLoad state updated with fallback data');
     }
-  };
+  }, []);
 
   // Clear pptToLoad after it's been processed by ChatInterface
   const clearPptToLoad = useCallback(() => {
