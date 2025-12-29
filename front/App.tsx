@@ -223,9 +223,11 @@ const App: React.FC = () => {
           if (existing >= 0) {
             const updated = [...prev];
             updated[existing] = historyItem;
+            console.log('[App] Updated existing PPT in history');
             return updated;
           }
           // Add new item at the beginning
+          console.log('[App] Added new PPT to history, sessionKey:', sessionKey);
           return [historyItem, ...prev];
         });
       }
@@ -342,7 +344,6 @@ const App: React.FC = () => {
           <ChatInterface
             key={sessionKey}
             isSidebarOpen={isSidebarOpen}
-            pptHistory={pptHistory}
             onSavePPTToHistory={savePPTToHistory}
             pptToLoad={pptToLoad}
             onClearPptToLoad={clearPptToLoad}

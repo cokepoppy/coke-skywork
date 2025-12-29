@@ -9,7 +9,6 @@ import { generateTextFreeBackground } from '../utils/imageProcessing';
 
 interface ChatInterfaceProps {
   isSidebarOpen: boolean;
-  pptHistory: PPTHistoryItem[];
   onSavePPTToHistory: (deck: SlideDeck) => void;
   pptToLoad: PPTHistoryItem | null;
   onClearPptToLoad: () => void;
@@ -137,7 +136,6 @@ const loadImageAsBase64 = async (url: string): Promise<string> => {
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   isSidebarOpen,
-  pptHistory,
   onSavePPTToHistory,
   pptToLoad,
   onClearPptToLoad
@@ -161,6 +159,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Monitor slideDeck changes
+  useEffect(() => {
+    console.log('[ChatInterface] slideDeck changed:', {
+      hasSlideDeck: !!slideDeck,
+      topic: slideDeck?.topic,
+      hasGeneratedImage: !!slideDeck?.generatedImage,
+      isHtmlMode: slideDeck?.isHtmlMode,
+    });
+  }, [slideDeck]);
+
+  // Monitor isPPTMode changes
+  useEffect(() => {
+    console.log('[ChatInterface] isPPTMode changed:', isPPTMode);
+  }, [isPPTMode]);
 
   // Auto-resize textarea
   useEffect(() => {
