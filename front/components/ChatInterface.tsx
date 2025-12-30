@@ -5,6 +5,7 @@ import { Send, Paperclip, Globe, Bot, User, StopCircle, Sparkles, Zap, ArrowRigh
 import { createChatStream, generateSlideImage, analyzePPTImage } from '../services/geminiService';
 import { Message, ModelType, SearchMode, SlideDeck, Slide, PPTPage, PPTHistoryItem } from '../types';
 import PPTEditor from './PPTEditor/PPTEditor';
+import VisualPPTEditor from './PPTEditor/VisualPPTEditor';
 import { generateTextFreeBackground } from '../utils/imageProcessing';
 
 interface ChatInterfaceProps {
@@ -308,6 +309,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           originalImage: loadedDeck.generatedImage
         };
         console.log('[ChatInterface] Restored originalImage from generatedImage');
+      }
+
+      // Convert legacy PPT to slides array format if slides don't exist
+      if (!loadedDeck.slides || loadedDeck.slides.length === 0) {
+        if (loadedDeck.generatedImage || loadedDeck.htmlContent) {
+          console.log('[ChatInterface] Converting legacy PPT to slides array format');
+          loadedDeck.slides = [{
+            id: `slide-${Date.now()}`,
+            pageNumber: 1,
+            topic: loadedDeck.topic || 'Slide 1',
+            generatedImage: loadedDeck.generatedImage,
+            htmlContent: loadedDeck.htmlContent,
+            analyzedData: loadedDeck.analyzedData,
+            isHtmlMode: loadedDeck.isHtmlMode
+          }];
+          console.log('[ChatInterface] Created slides array with 1 slide');
+        }
       }
 
       console.log('[ChatInterface] Setting slideDeck state from history');
@@ -858,19 +876,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             rows={1}
                             disabled={isLoading}
                         />
-                         {/* Upload PPT Shortcut */}
-                         <div className="text-xs mt-2 flex items-center gap-2" style={{backgroundColor: '#ff000020', padding: '8px', borderRadius: '4px'}}>
-                             <span className="text-skywork-muted/70">或者</span>
-                             <button
-                                 onClick={handleUploadPPTImage}
-                                 disabled={isAnalyzing}
-                                 className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                             >
-                                 <Upload size={12} />
-                                 上传现有PPT图片
-                             </button>
-                             <span className="text-red-400 font-bold ml-2">← NEW FEATURE</span>
-                         </div>
                          <div className="flex justify-between items-center mt-2">
                              <div className="flex gap-2">
                                 <button className="text-skywork-muted hover:text-white"><Paperclip size={16}/></button>
@@ -917,53 +922,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         </>
                       ) : (
                         <>
-                          {/* Edit Mode Buttons */}
-                          <button
-                            className="px-4 py-1.5 rounded-full bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 flex items-center gap-2"
-                            onClick={() => {
-                              // Apply edited content to slides
-                              if (slideDeck && editingSlides.size > 0) {
-                                const updatedSlides = slideDeck.slides.map(slide => {
-                                  const editedContent = editingSlides.get(slide.id);
-                                  if (editedContent && slide.htmlContent) {
-                                    // Create new blob URL from edited HTML
-                                    const htmlBlob = new Blob([editedContent], { type: 'text/html' });
-                                    const htmlBlobUrl = URL.createObjectURL(htmlBlob);
-                                    return {
-                                      ...slide,
-                                      htmlContent: editedContent,
-                                      generatedImage: htmlBlobUrl
-                                    };
-                                  }
-                                  return slide;
-                                });
-
-                                setSlideDeck({
-                                  ...slideDeck,
-                                  slides: updatedSlides
-                                });
-
-                                // Save to history
-                                onSavePPTToHistory({
-                                  ...slideDeck,
-                                  slides: updatedSlides
-                                });
-                              }
-                              setIsEditMode(false);
-                              setEditingSlides(new Map());
-                            }}
-                          >
-                            <Save size={14} /> Save
-                          </button>
-                          <button
-                            className="px-4 py-1.5 rounded-full border border-skywork-border text-sm font-medium hover:bg-white/5 text-skywork-text transition-colors"
-                            onClick={() => {
-                              setIsEditMode(false);
-                              setEditingSlides(new Map());
-                            }}
-                          >
-                            <X size={14} /> Cancel
-                          </button>
+                          {/* Edit Mode - Exit button */}
+                          <span className="text-sm text-skywork-muted">Editing Mode - Use Save/Cancel buttons in the editor</span>
                         </>
                       )}
                    </div>
@@ -981,7 +941,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             {/* Display all slides from the slides array */}
                             {slideDeck.slides && slideDeck.slides.length > 0 ? (
                                 slideDeck.slides.map((slide, index) => (
-                                    <div key={slide.id} className="w-full max-w-6xl animate-fade-in">
+                                    <div key={slide.id} className="w-full animate-fade-in">
                                         {/* Page number indicator */}
                                         <div className="flex items-center justify-between mb-3">
                                             <span className="text-sm font-medium text-skywork-muted">
@@ -991,52 +951,63 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                                 {slide.topic}
                                             </span>
                                         </div>
-                                        {/* Edit Mode: Show HTML editor for HTML slides */}
+                                        {/* Edit Mode: Show Visual Editor for HTML slides */}
                                         {isEditMode && slide.isHtmlMode && slide.htmlContent ? (
-                                            <div className="w-full space-y-4">
-                                                {/* HTML Editor */}
-                                                <div className="border border-skywork-border rounded-lg overflow-hidden">
-                                                    <div className="bg-skywork-surface/50 px-4 py-2 border-b border-skywork-border">
-                                                        <span className="text-xs font-medium text-skywork-muted">HTML Editor</span>
-                                                    </div>
-                                                    <textarea
-                                                        className="w-full h-96 p-4 bg-skywork-bg text-skywork-text font-mono text-sm resize-none focus:outline-none"
-                                                        value={editingSlides.get(slide.id) || slide.htmlContent}
-                                                        onChange={(e) => {
-                                                            const newMap = new Map(editingSlides);
-                                                            newMap.set(slide.id, e.target.value);
-                                                            setEditingSlides(newMap);
+                                            <div className="w-full bg-black p-2 rounded-xl shadow-2xl">
+                                                <div className="aspect-[16/9] w-full rounded-lg overflow-hidden relative" style={{backgroundColor: '#000'}}>
+                                                    <VisualPPTEditor
+                                                        slide={slide}
+                                                        onSave={(updatedHtml) => {
+                                                            // Create new blob URL from updated HTML
+                                                            const htmlBlob = new Blob([updatedHtml], { type: 'text/html' });
+                                                            const htmlBlobUrl = URL.createObjectURL(htmlBlob);
+
+                                                            // Update slide
+                                                            const updatedSlides = slideDeck.slides.map(s =>
+                                                                s.id === slide.id
+                                                                    ? { ...s, htmlContent: updatedHtml, generatedImage: htmlBlobUrl }
+                                                                    : s
+                                                            );
+
+                                                            setSlideDeck({
+                                                                ...slideDeck,
+                                                                slides: updatedSlides
+                                                            });
+
+                                                            // Save to history
+                                                            onSavePPTToHistory({
+                                                                ...slideDeck,
+                                                                slides: updatedSlides
+                                                            });
+
+                                                            setIsEditMode(false);
                                                         }}
-                                                        spellCheck={false}
-                                                    />
-                                                </div>
-                                                {/* Preview */}
-                                                <div className="aspect-[16/9] w-full bg-black border-4 border-gray-800 rounded-xl overflow-hidden shadow-2xl">
-                                                    <iframe
-                                                        srcDoc={editingSlides.get(slide.id) || slide.htmlContent}
-                                                        title={`Preview ${slide.pageNumber}`}
-                                                        className="w-full h-full border-0"
-                                                        sandbox="allow-same-origin allow-scripts"
+                                                        onCancel={() => setIsEditMode(false)}
                                                     />
                                                 </div>
                                             </div>
                                         ) : (
                                             /* Preview Mode: Show slide normally */
-                                            <div className="aspect-[16/9] w-full bg-black border-4 border-gray-800 rounded-xl overflow-hidden shadow-2xl relative group">
+                                            <div className="flex justify-center bg-black p-2 rounded-xl shadow-2xl">
                                                 {/* Check if this is HTML mode or image mode */}
-                                                {slide.isHtmlMode ? (
-                                                    <iframe
-                                                        src={slide.generatedImage}
-                                                        title={`Slide ${slide.pageNumber}`}
-                                                        className="w-full h-full border-0"
-                                                        sandbox="allow-same-origin allow-scripts"
+                                                {slide.isHtmlMode && slide.htmlContent ? (
+                                                    <div
+                                                        className="rounded-lg overflow-auto"
+                                                        style={{
+                                                            backgroundColor: '#1a1a1a',
+                                                            width: '1280px',
+                                                            height: '720px'
+                                                        }}
+                                                        dangerouslySetInnerHTML={{ __html: slide.htmlContent }}
                                                     />
                                                 ) : (
-                                                    <img
-                                                        src={slide.generatedImage}
-                                                        alt={`Slide ${slide.pageNumber}`}
-                                                        className="w-full h-full object-contain"
-                                                    />
+                                                    <div className="rounded-lg overflow-hidden" style={{ width: '1280px', height: '720px' }}>
+                                                        <img
+                                                            src={slide.generatedImage}
+                                                            alt={`Slide ${slide.pageNumber}`}
+                                                            className="w-full h-full object-contain"
+                                                        />
+                                                    </div>
                                                 )}
                                             </div>
                                         )}

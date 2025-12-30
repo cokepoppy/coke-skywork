@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Compass, LayoutGrid, Clock, Settings, Plus, ChevronLeft, ChevronRight, Search, Presentation } from 'lucide-react';
 import { PPTHistoryItem } from '../types';
+import { TokenManager } from '../services/api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,8 +12,16 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, startNewChat, pptHistory = [], onLoadPPT }) => {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Get user from localStorage
+    const userData = TokenManager.getUser();
+    setUser(userData);
+  }, []);
+
   return (
-    <div 
+    <div
       className={`fixed left-0 top-0 h-full bg-skywork-sidebar border-r border-skywork-border transition-all duration-300 z-50 flex flex-col ${isOpen ? 'w-64' : 'w-16'}`}
     >
       {/* Logo Area */}
@@ -65,13 +74,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar, startNewChat, 
       {/* Footer / User */}
       <div className="p-4 border-t border-skywork-border/50">
         <div className={`flex items-center gap-3 ${!isOpen && 'justify-center'}`}>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-gray-700 to-gray-600 flex items-center justify-center text-xs font-medium shrink-0">
-            U
-          </div>
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-8 h-8 rounded-full border-2 border-gray-600 shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-gray-700 to-gray-600 flex items-center justify-center text-xs font-medium shrink-0">
+              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </div>
+          )}
           {isOpen && (
             <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">User</p>
-              <p className="text-xs text-skywork-muted truncate">Free Plan</p>
+              <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+              <p className="text-xs text-skywork-muted truncate">{user?.email || 'Free Plan'}</p>
             </div>
           )}
           {isOpen && <Settings size={16} className="text-skywork-muted hover:text-white cursor-pointer" />}
