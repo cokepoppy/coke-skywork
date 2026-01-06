@@ -2,6 +2,10 @@
 
 基于 Gemini AI 的智能助手平台,支持AI对话、PPT生成、图片编辑等功能。
 
+## 示例截图
+
+![PPT 生成与编辑示例](docs/images/readme/ppt.png)
+
 ## 项目结构
 
 ```
