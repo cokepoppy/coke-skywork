@@ -156,7 +156,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [useReferenceImages, setUseReferenceImages] = useState<boolean>(true); // 启用参考图片
   const [editingPPT, setEditingPPT] = useState<PPTPage | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [useNanoBananaPro, setUseNanoBananaPro] = useState<boolean>(true); // Nano Banana Pro toggle
+  const [useNanoBananaPro, setUseNanoBananaPro] = useState<boolean>(false); // Nano Banana Pro toggle
   const [isEditMode, setIsEditMode] = useState(false); // Preview vs Edit mode
   const [editingSlides, setEditingSlides] = useState<Map<string, string>>(new Map()); // Store edited HTML content by slide ID
 
@@ -659,14 +659,63 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
-  const handleDownload = () => {
-    if (slideDeck?.generatedImage) {
-        const link = document.createElement('a');
-        link.href = slideDeck.generatedImage;
-        link.download = `slide-${Date.now()}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+  const handleDownload = async () => {
+    if (!slideDeck?.generatedImage) return;
+
+    // For HTML mode PPTs, we need to convert HTML to image using html2canvas
+    if (slideDeck.isHtmlMode && slideDeck.htmlContent) {
+      try {
+        console.log('[Download] HTML mode detected, converting HTML to image');
+
+        // Find the displayed HTML PPT container on the page
+        const pptContainer = document.querySelector('.rounded-lg.overflow-auto') as HTMLElement;
+        if (!pptContainer) {
+          throw new Error('无法找到PPT显示区域');
+        }
+
+        console.log('[Download] Found PPT container:', pptContainer);
+
+        // Import html2canvas dynamically
+        const html2canvas = (await import('html2canvas')).default;
+
+        // Capture the displayed container as canvas (1280x720)
+        const canvas = await html2canvas(pptContainer, {
+          width: 1280,
+          height: 720,
+          scale: 1,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true
+        });
+
+        console.log('[Download] Canvas created:', canvas.width, 'x', canvas.height);
+
+        // Convert canvas to blob and download
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `slide-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            console.log('[Download] HTML PPT downloaded successfully');
+          }
+        }, 'image/png');
+      } catch (error) {
+        console.error('[Download] Failed to convert HTML to image:', error);
+        alert('导出失败，请重试');
+      }
+    } else {
+      // For image mode, download directly
+      const link = document.createElement('a');
+      link.href = slideDeck.generatedImage;
+      link.download = `slide-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 

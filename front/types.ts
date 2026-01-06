@@ -23,7 +23,7 @@ export interface ChatSession {
 
 export enum ModelType {
   FLASH = 'gemini-2.5-flash',
-  PRO = 'gemini-3-pro-preview', // For "Deep Thinking" simulation
+  PRO = 'gemini-2.5-flash', // Changed from gemini-3-pro-preview due to quota limits
 }
 
 export enum SearchMode {
