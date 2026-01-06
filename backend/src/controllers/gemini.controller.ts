@@ -59,6 +59,26 @@ export class GeminiController {
   }
 
   /**
+   * POST /api/gemini/generate-html
+   * Generate full HTML presentation (non-stream)
+   */
+  async generateHtmlPresentation(req: Request, res: Response, next: NextFunction) {
+    try {
+      logger.info('[GeminiController] Generate HTML presentation request received');
+      const { prompt, model } = req.body || {};
+
+      if (!prompt || typeof prompt !== 'string') {
+        throw new BadRequestError('Prompt is required');
+      }
+
+      const html = await geminiService.generateHtmlPresentation(prompt, model);
+      res.json({ success: true, html });
+    } catch (error) {
+      logger.error('[GeminiController] Generate HTML error:', error);
+      next(error);
+    }
+  }
+  /**
    * POST /api/gemini/generate-slide
    * Generate a slide image
    */

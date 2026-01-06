@@ -38,6 +38,65 @@ export class GeminiService {
   }
 
   /**
+   * Generate full HTML presentation (non-stream)
+   */
+  async generateHtmlPresentation(prompt: string, model?: string): Promise<string> {
+    const selectedModel = model || process.env.GEMINI_HTML_MODEL || 'gemini-3-pro-preview';
+    logger.info(`[Gemini] Generating HTML presentation with model: ${selectedModel}`);
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: selectedModel,
+        contents: {
+          parts: [{ text: prompt }],
+        },
+        config: {
+          temperature: 0.7,
+        },
+      });
+
+      // Concatenate all text parts if multiple returned
+      const parts = response.candidates?.[0]?.content?.parts || [];
+      const fullText = parts
+        .map((p: any) => (p.text ? p.text : ''))
+        .join('');
+
+      if (!fullText) {
+        throw new Error('Empty response from model while generating HTML');
+      }
+
+      // Extract HTML code from fenced blocks if present
+      let html = fullText.trim();
+      const fenceMatch =
+        html.match(/```html\n([\s\S]*?)\n```/) ||
+        html.match(/```\n([\s\S]*?)\n```/);
+      if (fenceMatch && fenceMatch[1]) {
+        html = fenceMatch[1];
+      }
+
+      // Unescape if model returned escaped newlines
+      if (html.includes('\\n')) {
+        html = html.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      }
+
+      // Basic guard to ensure it looks like HTML
+      if (!/<!DOCTYPE|<html[\s>]|<head[\s>]|<body[\s>]/i.test(html)) {
+        logger.warn('[Gemini] Returned content does not contain full HTML structure');
+      }
+
+      logger.info(`[Gemini] HTML generation complete, length: ${html.length}`);
+      return html;
+    } catch (error: any) {
+      logger.error('[Gemini] HTML generation error:', {
+        message: error?.message,
+        status: error?.status,
+        stack: error?.stack?.split('\n').slice(0, 3),
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Create a chat stream with Gemini
    */
   async createChatStream(

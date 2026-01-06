@@ -100,3 +100,21 @@ export const analyzePPTImage = async (imageBase64: string): Promise<PPTPage> => 
     throw error;
   }
 };
+
+/**
+ * Generate full HTML presentation via backend (non-stream)
+ */
+export const generateHtmlPresentation = async (
+  prompt: string,
+  model: ModelType = ModelType.PRO
+): Promise<string> => {
+  console.log('[GeminiService] Generating HTML presentation via backend API');
+  try {
+    const html = await API.gemini.generateHtmlPresentation(prompt, model);
+    console.log('[GeminiService] HTML presentation generated, length:', html.length);
+    return html;
+  } catch (error) {
+    console.error('[GeminiService] HTML generation error:', error);
+    throw error;
+  }
+};

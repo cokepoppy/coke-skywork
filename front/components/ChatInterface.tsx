@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Send, Paperclip, Globe, Bot, User, StopCircle, Sparkles, Zap, ArrowRight, ExternalLink, Search, Plus, ChevronDown, Link as LinkIcon, Mic, RotateCcw, RotateCw, Save, X, CornerDownLeft, ArrowUpRight, CheckCircle2, LayoutTemplate, Undo2, Redo2, Image as ImageIcon, Loader2, Download, Edit, Upload, History } from 'lucide-react';
-import { createChatStream, generateSlideImage, analyzePPTImage } from '../services/geminiService';
+import { createChatStream, generateSlideImage, analyzePPTImage, generateHtmlPresentation } from '../services/geminiService';
 import { Message, ModelType, SearchMode, SlideDeck, Slide, PPTPage, PPTHistoryItem } from '../types';
 import PPTEditor from './PPTEditor/PPTEditor';
 import VisualPPTEditor from './PPTEditor/VisualPPTEditor';
@@ -481,34 +481,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 // Create prompt for HTML generation
                 const htmlPrompt = `${userMessage.content}\n\n${selectedStyle.suffix}\n\n请根据以上要求和风格指南，生成一个完整的HTML格式的PPT页面。要求：\n1. 使用完整的HTML结构（包括<!DOCTYPE html>, <html>, <head>, <body>）\n2. 内联所有CSS样式（使用<style>标签）\n3. 严格遵循提供的视觉风格和配色方案\n4. 创建一个高质量、专业的演示页面\n5. 确保页面自适应且美观\n6. 直接返回HTML代码，不要有任何其他解释文字`;
 
-                // Call Gemini Pro 3 to generate HTML
-                const response = await createChatStream(
-                    [],
-                    htmlPrompt,
-                    ModelType.PRO, // Use Gemini 3 Pro for better quality HTML generation
-                    SearchMode.OFF
+                // Call backend non-stream HTML generator
+                const cleanedHTML = await generateHtmlPresentation(
+                  htmlPrompt,
+                  ModelType.PRO
                 );
 
-                // Read the stream and collect HTML
-                const reader = response.body?.getReader();
-                const decoder = new TextDecoder();
-                let htmlContent = '';
-
-                if (reader) {
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-
-                        const chunk = decoder.decode(value, { stream: true });
-                        htmlContent += chunk;
-                    }
-                }
-
-                console.log('[PPT] Generated HTML length:', htmlContent.length);
-
-                // Extract HTML code from markdown code blocks if present
-                const htmlMatch = htmlContent.match(/```html\n([\s\S]*?)\n```/) || htmlContent.match(/```\n([\s\S]*?)\n```/);
-                const cleanedHTML = htmlMatch ? htmlMatch[1] : htmlContent;
+                console.log('[PPT] Generated HTML length:', cleanedHTML.length);
 
                 // Create a blob URL for the HTML (better for iframe rendering)
                 const htmlBlob = new Blob([cleanedHTML], { type: 'text/html' });

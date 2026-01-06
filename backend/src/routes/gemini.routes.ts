@@ -19,4 +19,7 @@ router.post('/remove-text', geminiController.removeTextWithAI.bind(geminiControl
 // Analyze PPT image
 router.post('/analyze-ppt', geminiController.analyzePPTImage.bind(geminiController));
 
+// Generate full HTML (non-stream)
+router.post('/generate-html', geminiController.generateHtmlPresentation.bind(geminiController));
+
 export default router;

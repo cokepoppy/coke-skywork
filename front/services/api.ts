@@ -393,6 +393,22 @@ export const API = {
 
       throw new Error('Failed to analyze PPT image');
     },
+
+    // 生成完整的HTML演示文稿（非流）
+    async generateHtmlPresentation(prompt: string, model?: string): Promise<string> {
+      console.log('[API] Calling backend Gemini generate HTML API');
+      const response = await apiRequest<any>('/api/gemini/generate-html', {
+        method: 'POST',
+        body: JSON.stringify({ prompt, model }),
+        requireAuth: true,
+      });
+
+      if (response.success && response.html) {
+        return response.html as string;
+      }
+
+      throw new Error('Failed to generate HTML presentation');
+    },
   },
 };
 
