@@ -958,9 +958,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                                     <VisualPPTEditor
                                                         slide={slide}
                                                         onSave={(updatedHtml) => {
+                                                            console.log('[ChatInterface] onSave called with HTML length:', updatedHtml.length);
+                                                            console.log('[ChatInterface] updatedHtml preview (first 500 chars):', updatedHtml.substring(0, 500));
+                                                            console.log('[ChatInterface] Current slide.htmlContent length:', slide.htmlContent?.length);
+
                                                             // Create new blob URL from updated HTML
                                                             const htmlBlob = new Blob([updatedHtml], { type: 'text/html' });
                                                             const htmlBlobUrl = URL.createObjectURL(htmlBlob);
+                                                            console.log('[ChatInterface] Created new blob URL:', htmlBlobUrl);
 
                                                             // Update slide
                                                             const updatedSlides = slideDeck.slides.map(s =>
@@ -968,19 +973,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                                                     ? { ...s, htmlContent: updatedHtml, generatedImage: htmlBlobUrl }
                                                                     : s
                                                             );
+                                                            console.log('[ChatInterface] Updated slides array, updated slide htmlContent length:',
+                                                                       updatedSlides.find(s => s.id === slide.id)?.htmlContent?.length);
 
                                                             setSlideDeck({
                                                                 ...slideDeck,
                                                                 slides: updatedSlides
                                                             });
+                                                            console.log('[ChatInterface] Called setSlideDeck');
 
                                                             // Save to history
                                                             onSavePPTToHistory({
                                                                 ...slideDeck,
                                                                 slides: updatedSlides
                                                             });
+                                                            console.log('[ChatInterface] Called onSavePPTToHistory');
 
                                                             setIsEditMode(false);
+                                                            console.log('[ChatInterface] Exited edit mode');
                                                         }}
                                                         onCancel={() => setIsEditMode(false)}
                                                     />

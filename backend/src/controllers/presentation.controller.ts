@@ -14,7 +14,7 @@ export async function savePresentation(req: Request, res: Response) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    let { topic, theme, generatedImage, htmlContent, thumbnailData, analyzedData, metadata } = req.body;
+    let { topic, theme, generatedImage, htmlContent, thumbnailData, analyzedData, metadata, slides } = req.body;
 
     if (!topic || !theme) {
       return res.status(400).json({ error: 'Topic and theme are required' });
@@ -27,6 +27,15 @@ export async function savePresentation(req: Request, res: Response) {
     }
 
     logger.info(`[Presentation] Saving presentation for user ${userId}. Topic length: ${topic.length}, Topic: ${topic.substring(0, 100)}...`);
+    logger.info(`[Presentation] Data received:`, {
+      hasGeneratedImage: !!generatedImage,
+      generatedImageLength: generatedImage?.length,
+      hasHtmlContent: !!htmlContent,
+      htmlContentLength: htmlContent?.length,
+      hasSlides: !!slides,
+      slidesCount: slides?.length,
+      firstSlideHtmlLength: slides?.[0]?.htmlContent?.length
+    });
 
     const presentation = await prisma.presentation.create({
       data: {

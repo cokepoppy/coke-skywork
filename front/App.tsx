@@ -174,12 +174,24 @@ const App: React.FC = () => {
     try {
       // For HTML mode, we need to save the HTML content, not the blob URL
       // Blob URLs are session-specific and won't work after page reload
+
+      // For slides array format, collect HTML from all slides
+      let htmlContentToSave = deck.htmlContent;
+      if (deck.slides && deck.slides.length > 0) {
+        // Use the first slide's HTML content (for now, multi-slide full support can be added later)
+        const firstSlide = deck.slides[0];
+        if (firstSlide.htmlContent) {
+          htmlContentToSave = firstSlide.htmlContent;
+          console.log('[App] Using HTML from slides array, length:', htmlContentToSave.length);
+        }
+      }
+
       let imageToSave = deck.generatedImage;
-      if (deck.isHtmlMode && deck.htmlContent) {
+      if (deck.isHtmlMode && htmlContentToSave) {
         // Create a data URL from HTML content for persistent storage
-        const htmlBase64 = btoa(unescape(encodeURIComponent(deck.htmlContent)));
+        const htmlBase64 = btoa(unescape(encodeURIComponent(htmlContentToSave)));
         imageToSave = `data:text/html;base64,${htmlBase64}`;
-        console.log('[App] Converting HTML to data URL for storage, length:', imageToSave.length);
+        console.log('[App] Converting HTML to data URL for storage, data URL length:', imageToSave.length, 'original HTML length:', htmlContentToSave.length);
       }
 
       // Save to database
@@ -187,30 +199,44 @@ const App: React.FC = () => {
         topic: safeTopicTitle,  // Use safe truncated title instead of full topic
         theme: deck.theme,
         generatedImage: imageToSave, // For HTML mode, this will be data URL, for image mode, base64 image
-        htmlContent: deck.htmlContent,
+        htmlContent: htmlContentToSave, // Use the updated HTML content from slides array
         thumbnailData: imageToSave, // Use same as generated image for now
         analyzedData: deck.analyzedData,
         isHtmlMode: deck.isHtmlMode, // Save the mode flag
+        slides: deck.slides, // Save the slides array for multi-slide support
         metadata: deck.selectedStyle ? {
           styleId: deck.selectedStyle.id,
           styleName: deck.selectedStyle.title,
         } : null,
       };
 
-      const response = await API.presentations.save(presentationData);
+      // If deck has an ID, update the existing presentation; otherwise, create a new one
+      let response;
+      if (deck.id && typeof deck.id === 'string' && deck.id.startsWith('ppt-') === false) {
+        // deck.id exists and is a database ID (not a temporary "ppt-xxx" ID)
+        console.log('[App] Updating existing presentation with ID:', deck.id);
+        response = await API.presentations.update(deck.id, presentationData);
+      } else {
+        // New presentation or temporary ID
+        console.log('[App] Creating new presentation');
+        response = await API.presentations.save(presentationData);
+      }
 
       if (response.success && response.presentation) {
         console.log('[App] PPT saved to database successfully:', response.presentation.id);
 
         // Update local history with database ID
+        // IMPORTANT: Use the updated htmlContent from deck.slides array, not the old generatedImage
         const historyItem: PPTHistoryItem = {
           id: response.presentation.id,
           topic: safeTopicTitle,  // Use safe truncated title
-          thumbnail: deck.generatedImage,
+          thumbnail: imageToSave,  // Use the new saved image (data URL for HTML mode)
           slideDeck: {
             ...deck,
             topic: safeTopicTitle,  // Update deck topic as well
             id: response.presentation.id,
+            htmlContent: htmlContentToSave,  // Use the updated HTML content
+            generatedImage: imageToSave,  // Use the new saved image
             createdAt: new Date(response.presentation.createdAt).getTime(),
           },
           createdAt: new Date(response.presentation.createdAt).getTime(),
@@ -230,6 +256,11 @@ const App: React.FC = () => {
           console.log('[App] Added new PPT to history, sessionKey:', sessionKey);
           return [historyItem, ...prev];
         });
+
+        // CRITICAL: Also update pptToLoad to reflect the new data
+        // This prevents the old data from being reloaded when the component re-renders
+        setPptToLoad(historyItem);
+        console.log('[App] Updated pptToLoad with new data after save');
       }
     } catch (error) {
       console.error('[App] Failed to save PPT to database:', error);
